@@ -70,7 +70,7 @@ def supergemma_download_command(
         model = SUPERGEMMA_MODELS[index]
     except IndexError as exc:
         raise typer.BadParameter(f"index must be between 0 and {len(SUPERGEMMA_MODELS) - 1}") from exc
-    console.print(model.download_command(local_dir=local_dir))
+    console.print(model.download_command(local_dir=local_dir), soft_wrap=True)
 
 
 @supergemma_app.command("quickstart")
@@ -104,7 +104,8 @@ def supergemma_quickstart(
                 "4. Export the best config:",
                 "sg-autotune export runs/latest.jsonl --target llamacpp --model-path " + model_path,
             ]
-        )
+        ),
+        soft_wrap=True,
     )
 
 
@@ -155,7 +156,7 @@ def run(
     recommendation = build_recommendation(out)
     console.print(f"[green]Done[/green] {len(history)} iterations")
     console.print(recommendation.summary)
-    console.print(recommendation.command)
+    console.print(recommendation.command, soft_wrap=True)
 
 
 @app.command()
@@ -172,7 +173,7 @@ def export(
         out.write_text(rendered, encoding="utf-8")
         console.print(f"[green]Wrote[/green] {out}")
     else:
-        console.print(rendered)
+        console.print(rendered, soft_wrap=True)
 
 
 @app.command()
