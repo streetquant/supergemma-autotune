@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, Form
@@ -69,7 +70,8 @@ def start_run(
     model_path: str = Form(""),
     safe_mode: bool = Form(True),
 ) -> str:
-    out = Path("runs") / f"web-{runner}.jsonl"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    out = Path("runs") / f"web-{stamp}-{runner}.jsonl"
     runner_impl = build_runner(
         runner,
         base_url=base_url,
@@ -85,6 +87,7 @@ def start_run(
         profile=profile,
         max_iterations=max_iterations,
         constraint_policy=auto_constraint_policy(model_path or None) if safe_mode else None,
+        resume=False,
     )
     return f"""
 <html><body>

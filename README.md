@@ -60,6 +60,9 @@ By default, AutoTune applies a conservative hardware-aware safety filter using
 available VRAM/RAM and the model file size. Add `--unsafe` only if you explicitly
 want to let the runner try every candidate.
 
+Runs are resumable by default. Re-run with the same `--out` path to continue the
+same Bayesian study from its JSONL ledger, or pass `--fresh` to overwrite it.
+
 Export the best result:
 
 ```bash
@@ -111,6 +114,7 @@ This first iteration ships the production shape:
 - exporters for llama.cpp commands, Ollama Modelfiles, LM Studio JSON, and Codex env hints
 - conservative hardware-aware constraints to avoid obvious OOM-prone candidates
 - SuperGemma model catalog and quickstart helper commands
+- resumable JSONL studies for long-running optimization sessions
 - CLI UI with scan/run/report/web commands
 - minimal FastAPI web UI
 - JSONL run ledger and Markdown reports

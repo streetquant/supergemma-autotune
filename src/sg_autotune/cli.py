@@ -120,6 +120,7 @@ def run(
     llama_server: str = typer.Option("llama-server", help="llama-server binary path/name."),
     port: int = typer.Option(0, help="Managed llama.cpp port; 0 chooses a free port."),
     unsafe: bool = typer.Option(False, help="Disable hardware-aware safety constraints."),
+    fresh: bool = typer.Option(False, help="Do not resume an existing JSONL ledger."),
     max_iterations: int | None = typer.Option(None, help="Optional iteration cap."),
     seed: int = typer.Option(7, help="Optimizer seed."),
 ) -> None:
@@ -147,6 +148,7 @@ def run(
         seed=seed,
         max_iterations=max_iterations,
         constraint_policy=constraint_policy,
+        resume=not fresh,
     )
     if not history:
         raise typer.BadParameter("Budget ended before any iteration completed.")

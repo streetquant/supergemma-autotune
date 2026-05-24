@@ -43,15 +43,20 @@ def run_study(
     seed: int = 7,
     max_iterations: int | None = None,
     constraint_policy: ConstraintPolicy | None = None,
+    resume: bool = True,
 ) -> list[BenchmarkResult]:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     optimizer = BayesianOptimizer(seed=seed)
-    history: list[BenchmarkResult] = []
+    records = load_results(out_path) if resume and out_path.exists() else []
+    history: list[BenchmarkResult] = [record.result for record in records]
+    optimizer.observe_existing(history)
     deadline = time.monotonic() + budget_s
-    iteration = 0
-    with out_path.open("a", encoding="utf-8") as fh:
+    iteration = (max((record.iteration for record in records), default=-1) + 1) if resume else 0
+    mode = "a" if resume else "w"
+    with out_path.open(mode, encoding="utf-8") as fh:
         while time.monotonic() < deadline:
-            if max_iterations is not None and iteration >= max_iterations:
+            new_iterations = iteration - (records[-1].iteration + 1 if records else 0)
+            if max_iterations is not None and new_iterations >= max_iterations:
                 break
             config = optimizer.suggest(history)
             rejection = constraint_policy.explain_rejection(config) if constraint_policy else None
