@@ -8,6 +8,7 @@ import uvicorn
 from rich.console import Console
 from rich.table import Table
 
+from sg_autotune.constraints import auto_constraint_policy
 from sg_autotune.exporters import export_from_records
 from sg_autotune.hardware import scan_hardware, scan_json
 from sg_autotune.models import RunnerKind
@@ -55,6 +56,7 @@ def run(
     model_path: str | None = typer.Option(None, help="GGUF model path for managed llama.cpp."),
     llama_server: str = typer.Option("llama-server", help="llama-server binary path/name."),
     port: int = typer.Option(0, help="Managed llama.cpp port; 0 chooses a free port."),
+    unsafe: bool = typer.Option(False, help="Disable hardware-aware safety constraints."),
     max_iterations: int | None = typer.Option(None, help="Optional iteration cap."),
     seed: int = typer.Option(7, help="Optimizer seed."),
 ) -> None:
@@ -71,6 +73,7 @@ def run(
         llama_server=llama_server,
         port=port,
     )
+    constraint_policy = None if unsafe else auto_constraint_policy(model_path)
     console.print(f"[bold]Starting {runner} study[/bold] for {budget_s:.0f}s -> {out}")
     history = run_study(
         runner_kind=runner,
@@ -80,6 +83,7 @@ def run(
         profile=profile,
         seed=seed,
         max_iterations=max_iterations,
+        constraint_policy=constraint_policy,
     )
     if not history:
         raise typer.BadParameter("Budget ended before any iteration completed.")

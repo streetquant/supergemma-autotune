@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, Form
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
+from sg_autotune.constraints import auto_constraint_policy
 from sg_autotune.report import render_markdown
 from sg_autotune.study import build_runner, run_study
 
@@ -43,6 +44,9 @@ def index() -> str:
         <label>Base URL <input name="base_url" value="http://127.0.0.1:8080/v1" /></label>
         <label>Model <input name="model" value="supergemma" /></label>
         <label>GGUF path <input name="model_path" value="" /></label>
+        <label>Safety
+          <select name="safe_mode"><option value="true">safe</option><option value="false">unsafe</option></select>
+        </label>
       </div>
       <button type="submit">Start Run</button>
     </form>
@@ -63,6 +67,7 @@ def start_run(
     base_url: str = Form("http://127.0.0.1:8080/v1"),
     model: str = Form("supergemma"),
     model_path: str = Form(""),
+    safe_mode: bool = Form(True),
 ) -> str:
     out = Path("runs") / f"web-{runner}.jsonl"
     runner_impl = build_runner(
@@ -79,6 +84,7 @@ def start_run(
         out_path=out,
         profile=profile,
         max_iterations=max_iterations,
+        constraint_policy=auto_constraint_policy(model_path or None) if safe_mode else None,
     )
     return f"""
 <html><body>

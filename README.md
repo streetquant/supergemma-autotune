@@ -45,6 +45,10 @@ uv run sg-autotune run \
   --profile coding-agent
 ```
 
+By default, AutoTune applies a conservative hardware-aware safety filter using
+available VRAM/RAM and the model file size. Add `--unsafe` only if you explicitly
+want to let the runner try every candidate.
+
 Export the best result:
 
 ```bash
@@ -94,9 +98,10 @@ This first iteration ships the production shape:
 - OpenAI-compatible runner for Ollama, llama.cpp server, LM Studio, and vLLM-style APIs
 - managed `llama-server` runner that starts, probes, and stops a server per candidate
 - exporters for llama.cpp commands, Ollama Modelfiles, LM Studio JSON, and Codex env hints
+- conservative hardware-aware constraints to avoid obvious OOM-prone candidates
 - CLI UI with scan/run/report/web commands
 - minimal FastAPI web UI
 - JSONL run ledger and Markdown reports
 
-The next iteration should add richer hardware-aware constraints and safer long-running
-resume/stop behavior.
+The next iteration should add safer long-running resume/stop behavior and richer
+model-specific memory estimates.

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import TextIO
 
+from sg_autotune.constraints import ConstraintPolicy, constraint_failure_result
 from sg_autotune.models import BenchmarkResult, RunnerKind, StudyRecord
 from sg_autotune.optimizer import BayesianOptimizer
 from sg_autotune.runners import LlamaCppManagedRunner, MockRunner, OpenAICompatibleRunner, Runner
@@ -41,6 +42,7 @@ def run_study(
     profile: str = "coding-agent",
     seed: int = 7,
     max_iterations: int | None = None,
+    constraint_policy: ConstraintPolicy | None = None,
 ) -> list[BenchmarkResult]:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     optimizer = BayesianOptimizer(seed=seed)
@@ -52,7 +54,11 @@ def run_study(
             if max_iterations is not None and iteration >= max_iterations:
                 break
             config = optimizer.suggest(history)
-            result = runner.benchmark(config, profile=profile)
+            rejection = constraint_policy.explain_rejection(config) if constraint_policy else None
+            if rejection:
+                result = constraint_failure_result(config, profile, rejection)
+            else:
+                result = runner.benchmark(config, profile=profile)
             history.append(result)
             record = StudyRecord(
                 iteration=iteration,
