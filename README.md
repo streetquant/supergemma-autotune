@@ -1,5 +1,7 @@
 # SuperGemma AutoTune
 
+[![CI](https://github.com/streetquant/supergemma-autotune/actions/workflows/ci.yml/badge.svg)](https://github.com/streetquant/supergemma-autotune/actions/workflows/ci.yml)
+
 Bayesian optimization for SuperGemma local runner settings.
 
 Local LLM users often copy `llama.cpp`, Ollama, or LM Studio settings from a random
