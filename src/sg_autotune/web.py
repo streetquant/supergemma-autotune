@@ -11,11 +11,12 @@ from sg_autotune.report import render_markdown
 from sg_autotune.study import build_runner, run_study
 
 app = FastAPI(title="SuperGemma AutoTune")
+RUNS_DIR = Path("runs")
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    runs = sorted(Path("runs").glob("*.jsonl"), reverse=True)
+    runs = sorted(RUNS_DIR.glob("*.jsonl"), reverse=True)
     run_items = "\n".join(
         f'<li><a href="/report?path={run.as_posix()}">{run.as_posix()}</a></li>' for run in runs[:20]
     )
@@ -71,7 +72,7 @@ def start_run(
     safe_mode: bool = Form(True),
 ) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    out = Path("runs") / f"web-{stamp}-{runner}.jsonl"
+    out = RUNS_DIR / f"web-{stamp}-{runner}.jsonl"
     runner_impl = build_runner(
         runner,
         base_url=base_url,
@@ -99,7 +100,22 @@ def start_run(
 
 @app.get("/report", response_class=PlainTextResponse)
 def get_report(path: str) -> str:
-    records = Path(path)
+    records = _safe_records_path(path)
+    if records is None:
+        return "Invalid run path."
     if not records.exists():
         return "Run is not available yet."
     return render_markdown(records)
+
+
+def _safe_records_path(path: str) -> Path | None:
+    candidate = Path(path)
+    if candidate.suffix != ".jsonl":
+        return None
+    try:
+        resolved = candidate.resolve()
+        runs_root = RUNS_DIR.resolve()
+        resolved.relative_to(runs_root)
+    except (OSError, ValueError):
+        return None
+    return candidate
