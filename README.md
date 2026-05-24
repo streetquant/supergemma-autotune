@@ -35,6 +35,25 @@ Start the minimal web UI:
 uv run sg-autotune web --host 127.0.0.1 --port 7860
 ```
 
+Run managed `llama-server` trials, one process per candidate:
+
+```bash
+uv run sg-autotune run \
+  --runner llamacpp \
+  --model-path ./supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf \
+  --budget 2h \
+  --profile coding-agent
+```
+
+Export the best result:
+
+```bash
+uv run sg-autotune export runs/latest.jsonl --target llamacpp --model-path ./model.gguf
+uv run sg-autotune export runs/latest.jsonl --target ollama --model-path ./model.gguf
+uv run sg-autotune export runs/latest.jsonl --target lmstudio
+uv run sg-autotune export runs/latest.jsonl --target codex
+```
+
 ## What It Tunes
 
 - `ctx_size`
@@ -73,10 +92,11 @@ This first iteration ships the production shape:
 - Bayesian optimizer using `GaussianProcessRegressor` + expected improvement
 - deterministic mock runner for end-to-end tests
 - OpenAI-compatible runner for Ollama, llama.cpp server, LM Studio, and vLLM-style APIs
+- managed `llama-server` runner that starts, probes, and stops a server per candidate
+- exporters for llama.cpp commands, Ollama Modelfiles, LM Studio JSON, and Codex env hints
 - CLI UI with scan/run/report/web commands
 - minimal FastAPI web UI
 - JSONL run ledger and Markdown reports
 
-The next iteration should add native `llama-server` process orchestration and richer
-hardware-aware constraints.
-
+The next iteration should add richer hardware-aware constraints and safer long-running
+resume/stop behavior.

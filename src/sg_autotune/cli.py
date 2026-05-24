@@ -8,6 +8,7 @@ import uvicorn
 from rich.console import Console
 from rich.table import Table
 
+from sg_autotune.exporters import export_from_records
 from sg_autotune.hardware import scan_hardware, scan_json
 from sg_autotune.models import RunnerKind
 from sg_autotune.report import build_recommendation, write_report
@@ -51,6 +52,9 @@ def run(
     profile: str = typer.Option("coding-agent", help="Scoring profile."),
     base_url: str | None = typer.Option(None, help="OpenAI-compatible base URL."),
     model: str | None = typer.Option(None, help="Model name for OpenAI-compatible runner."),
+    model_path: str | None = typer.Option(None, help="GGUF model path for managed llama.cpp."),
+    llama_server: str = typer.Option("llama-server", help="llama-server binary path/name."),
+    port: int = typer.Option(0, help="Managed llama.cpp port; 0 chooses a free port."),
     max_iterations: int | None = typer.Option(None, help="Optional iteration cap."),
     seed: int = typer.Option(7, help="Optimizer seed."),
 ) -> None:
@@ -59,7 +63,14 @@ def run(
     if out is None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         out = Path("runs") / f"{stamp}-{runner}.jsonl"
-    runner_impl = build_runner(runner, base_url=base_url, model=model)
+    runner_impl = build_runner(
+        runner,
+        base_url=base_url,
+        model=model,
+        model_path=model_path,
+        llama_server=llama_server,
+        port=port,
+    )
     console.print(f"[bold]Starting {runner} study[/bold] for {budget_s:.0f}s -> {out}")
     history = run_study(
         runner_kind=runner,
@@ -76,6 +87,23 @@ def run(
     console.print(f"[green]Done[/green] {len(history)} iterations")
     console.print(recommendation.summary)
     console.print(recommendation.command)
+
+
+@app.command()
+def export(
+    records: Path = typer.Argument(..., help="JSONL run ledger."),
+    target: str = typer.Option("llamacpp", help="llamacpp, ollama, lmstudio, or codex."),
+    model_path: str = typer.Option("MODEL.gguf", help="Path to use in generated config."),
+    out: Path | None = typer.Option(None, help="Write export to this path."),
+) -> None:
+    """Export the best config for another runner or harness."""
+    rendered = export_from_records(records, target=target, model_path=model_path)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(rendered, encoding="utf-8")
+        console.print(f"[green]Wrote[/green] {out}")
+    else:
+        console.print(rendered)
 
 
 @app.command()
@@ -114,4 +142,3 @@ def parse_duration(value: str) -> float:
 
 if __name__ == "__main__":
     app()
-

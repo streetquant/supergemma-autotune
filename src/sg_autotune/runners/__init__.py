@@ -1,6 +1,6 @@
 from sg_autotune.runners.base import Runner
+from sg_autotune.runners.llamacpp import LlamaCppManagedRunner
 from sg_autotune.runners.mock import MockRunner
 from sg_autotune.runners.openai import OpenAICompatibleRunner
 
-__all__ = ["MockRunner", "OpenAICompatibleRunner", "Runner"]
-
+__all__ = ["LlamaCppManagedRunner", "MockRunner", "OpenAICompatibleRunner", "Runner"]

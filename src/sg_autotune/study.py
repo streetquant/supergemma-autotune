@@ -7,7 +7,7 @@ from typing import TextIO
 
 from sg_autotune.models import BenchmarkResult, RunnerKind, StudyRecord
 from sg_autotune.optimizer import BayesianOptimizer
-from sg_autotune.runners import MockRunner, OpenAICompatibleRunner, Runner
+from sg_autotune.runners import LlamaCppManagedRunner, MockRunner, OpenAICompatibleRunner, Runner
 
 
 def build_runner(
@@ -15,6 +15,9 @@ def build_runner(
     *,
     base_url: str | None = None,
     model: str | None = None,
+    model_path: str | None = None,
+    llama_server: str = "llama-server",
+    port: int = 0,
 ) -> Runner:
     if runner == "mock":
         return MockRunner()
@@ -22,6 +25,10 @@ def build_runner(
         if not base_url or not model:
             raise ValueError("--base-url and --model are required for --runner openai")
         return OpenAICompatibleRunner(base_url=base_url, model=model)
+    if runner == "llamacpp":
+        if not model_path:
+            raise ValueError("--model-path is required for --runner llamacpp")
+        return LlamaCppManagedRunner(model_path=model_path, binary=llama_server, port=port)
     raise ValueError(f"Unsupported runner: {runner}")
 
 
@@ -92,4 +99,3 @@ def json_summary(path: Path) -> str:
         indent=2,
         sort_keys=True,
     )
-

@@ -35,13 +35,14 @@ def index() -> str:
     <form method="post" action="/run">
       <div class="grid">
         <label>Runner
-          <select name="runner"><option value="mock">mock</option><option value="openai">openai</option></select>
+          <select name="runner"><option value="mock">mock</option><option value="openai">openai</option><option value="llamacpp">llamacpp</option></select>
         </label>
         <label>Budget seconds <input name="budget_s" value="60" /></label>
         <label>Max iterations <input name="max_iterations" value="20" /></label>
         <label>Profile <input name="profile" value="coding-agent" /></label>
         <label>Base URL <input name="base_url" value="http://127.0.0.1:8080/v1" /></label>
         <label>Model <input name="model" value="supergemma" /></label>
+        <label>GGUF path <input name="model_path" value="" /></label>
       </div>
       <button type="submit">Start Run</button>
     </form>
@@ -61,9 +62,15 @@ def start_run(
     profile: str = Form("coding-agent"),
     base_url: str = Form("http://127.0.0.1:8080/v1"),
     model: str = Form("supergemma"),
+    model_path: str = Form(""),
 ) -> str:
     out = Path("runs") / f"web-{runner}.jsonl"
-    runner_impl = build_runner(runner, base_url=base_url, model=model)
+    runner_impl = build_runner(
+        runner,
+        base_url=base_url,
+        model=model,
+        model_path=model_path or None,
+    )
     background_tasks.add_task(
         run_study,
         runner_kind=runner,
@@ -87,4 +94,3 @@ def get_report(path: str) -> str:
     if not records.exists():
         return "Run is not available yet."
     return render_markdown(records)
-

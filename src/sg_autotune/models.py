@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-RunnerKind = Literal["mock", "openai"]
+RunnerKind = Literal["mock", "openai", "llamacpp"]
 
 
 class TuneConfig(BaseModel):
@@ -96,4 +96,3 @@ class Recommendation(BaseModel):
     command: str
     summary: str
     warnings: list[str] = Field(default_factory=list)
-

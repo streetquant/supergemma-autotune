@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import random
+import warnings
 
 import numpy as np
 from scipy.stats import norm
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel, Matern, WhiteKernel
 
@@ -43,7 +45,9 @@ class BayesianOptimizer:
             random_state=self.rng.randrange(1, 2**31 - 1),
             n_restarts_optimizer=2,
         )
-        model.fit(x, y)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ConvergenceWarning)
+            model.fit(x, y)
 
         candidates = self.search_space.candidate_pool(self.rng, self.candidate_pool_size)
         candidates = [candidate for candidate in candidates if self._fingerprint(candidate) not in self._seen]
