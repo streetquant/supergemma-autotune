@@ -14,8 +14,11 @@ from sg_autotune.hardware import scan_hardware, scan_json
 from sg_autotune.models import RunnerKind
 from sg_autotune.report import build_recommendation, write_report
 from sg_autotune.study import build_runner, json_summary, run_study
+from sg_autotune.supergemma import SUPERGEMMA_MODELS, model_catalog_json
 
 app = typer.Typer(help="Bayesian autotuning for local LLM runner settings.")
+supergemma_app = typer.Typer(help="SuperGemma-first helper commands.")
+app.add_typer(supergemma_app, name="supergemma")
 console = Console()
 
 
@@ -43,6 +46,66 @@ def scan(json_output: bool = typer.Option(False, "--json", help="Print raw JSON.
     console.print("[bold]Tools[/bold]")
     for tool, path in data["tools"].items():
         console.print(f"{tool}: {path or '[red]not found[/red]'}")
+
+
+@supergemma_app.command("models")
+def supergemma_models(json_output: bool = typer.Option(False, "--json", help="Print raw JSON.")) -> None:
+    """List known SuperGemma model targets for autotuning."""
+    if json_output:
+        console.print(model_catalog_json())
+        return
+    table = Table("Model", "Family", "Runner", "Notes")
+    for model in SUPERGEMMA_MODELS:
+        table.add_row(model.repo_id, model.family, model.runner_hint, model.notes)
+    console.print(table)
+
+
+@supergemma_app.command("download-command")
+def supergemma_download_command(
+    index: int = typer.Argument(0, help="Model index from `sg-autotune supergemma models`."),
+    local_dir: str = typer.Option("models", help="Download directory."),
+) -> None:
+    """Print a Hugging Face download command for a SuperGemma target."""
+    try:
+        model = SUPERGEMMA_MODELS[index]
+    except IndexError as exc:
+        raise typer.BadParameter(f"index must be between 0 and {len(SUPERGEMMA_MODELS) - 1}") from exc
+    console.print(model.download_command(local_dir=local_dir))
+
+
+@supergemma_app.command("quickstart")
+def supergemma_quickstart(
+    model_path: str = typer.Option(
+        "./models/supergemma4-26b-uncensored-gguf-v2/supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf",
+        help="Expected GGUF model path.",
+    )
+) -> None:
+    """Print the recommended SuperGemma AutoTune flow."""
+    console.print(
+        "\n".join(
+            [
+                "SuperGemma AutoTune is runtime autotuning, not weight fine-tuning.",
+                "",
+                "1. Download a SuperGemma GGUF:",
+                SUPERGEMMA_MODELS[0].download_command(),
+                "",
+                "2. Run a short smoke study:",
+                (
+                    "sg-autotune run --runner llamacpp "
+                    f"--model-path {model_path} --budget 10m --profile coding-agent"
+                ),
+                "",
+                "3. Run the real study when the smoke run looks healthy:",
+                (
+                    "sg-autotune run --runner llamacpp "
+                    f"--model-path {model_path} --budget 2h --profile coding-agent"
+                ),
+                "",
+                "4. Export the best config:",
+                "sg-autotune export runs/latest.jsonl --target llamacpp --model-path " + model_path,
+            ]
+        )
+    )
 
 
 @app.command()

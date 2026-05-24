@@ -1,6 +1,6 @@
 # SuperGemma AutoTune
 
-Bayesian optimization for local LLM runner settings.
+Bayesian optimization for SuperGemma local runner settings.
 
 Local LLM users often copy `llama.cpp`, Ollama, or LM Studio settings from a random
 post and then wonder whether the model, runner, quant, KV cache, context size, or
@@ -8,6 +8,10 @@ chat template is responsible for slow or flaky behavior. SuperGemma AutoTune tre
 the user's own machine as the benchmark target: run it for a chosen time budget and
 it searches runner parameters, scores real reliability probes, and emits a
 copy-paste configuration.
+
+This is an open-source contribution to the SuperGemma ecosystem. It is **runtime
+autotuning, not weight fine-tuning**: it does not modify model weights. It helps
+SuperGemma users find the best runner configuration for their own hardware.
 
 ## Quick Start
 
@@ -33,6 +37,13 @@ Start the minimal web UI:
 
 ```bash
 uv run sg-autotune web --host 127.0.0.1 --port 7860
+```
+
+Show SuperGemma-first helpers:
+
+```bash
+uv run sg-autotune supergemma models
+uv run sg-autotune supergemma quickstart
 ```
 
 Run managed `llama-server` trials, one process per candidate:
@@ -99,6 +110,7 @@ This first iteration ships the production shape:
 - managed `llama-server` runner that starts, probes, and stops a server per candidate
 - exporters for llama.cpp commands, Ollama Modelfiles, LM Studio JSON, and Codex env hints
 - conservative hardware-aware constraints to avoid obvious OOM-prone candidates
+- SuperGemma model catalog and quickstart helper commands
 - CLI UI with scan/run/report/web commands
 - minimal FastAPI web UI
 - JSONL run ledger and Markdown reports
