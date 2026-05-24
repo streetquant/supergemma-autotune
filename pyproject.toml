@@ -17,6 +17,7 @@ dependencies = [
   "numpy>=1.26",
   "psutil>=5.9",
   "pydantic>=2.6",
+  "python-multipart>=0.0.9",
   "rich>=13.7",
   "scikit-learn>=1.4",
   "scipy>=1.12",
@@ -30,10 +31,12 @@ dev = ["pytest>=8.0"]
 [project.scripts]
 sg-autotune = "sg_autotune.cli:app"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/sg_autotune"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
-
