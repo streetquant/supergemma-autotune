@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 
 from sg_autotune.models import TuneConfig
@@ -14,7 +15,7 @@ def export_from_records(records_path: Path, *, target: str, model_path: str = "M
 
 def export_config(config: TuneConfig, *, target: str, model_path: str = "MODEL.gguf") -> str:
     if target == "llamacpp":
-        return " ".join(config.llama_cpp_args(model_path)) + "\n"
+        return shlex.join(config.llama_cpp_args(model_path)) + "\n"
     if target == "ollama":
         return render_ollama_modelfile(config, model_path=model_path)
     if target == "lmstudio":
@@ -88,4 +89,3 @@ def render_codex_env(config: TuneConfig) -> str:
             f"# tuned_top_p={config.top_p:.3f}",
         ]
     ) + "\n"
-

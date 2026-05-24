@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shlex
 
 from sg_autotune.models import BenchmarkResult, Recommendation
 from sg_autotune.study import best_result, load_results
@@ -32,7 +33,7 @@ def _recommendation_command(best: BenchmarkResult, *, runner: str, model_path: s
             f"top_k={best.config.top_k}. "
             "Runtime/server flags were not tuned by this runner."
         )
-    return " ".join(best.config.llama_cpp_args(model_path))
+    return shlex.join(best.config.llama_cpp_args(model_path))
 
 
 def render_markdown(records_path: Path, *, model_path: str = "MODEL.gguf") -> str:

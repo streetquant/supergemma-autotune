@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
+import signal
 import shutil
 import socket
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -26,12 +29,14 @@ class LlamaCppManagedRunner(Runner):
         host: str = "127.0.0.1",
         port: int = 0,
         startup_timeout_s: float = 90.0,
+        log_dir: str | Path = "runs/logs",
     ):
         self.model_path = model_path
         self.binary = binary
         self.host = host
         self.port = port
         self.startup_timeout_s = startup_timeout_s
+        self.log_dir = Path(log_dir)
 
     def capabilities(self) -> RunnerCapabilities:
         return RunnerCapabilities(
@@ -51,38 +56,39 @@ class LlamaCppManagedRunner(Runner):
         cmd = config.llama_cpp_args(self.model_path)
         cmd[0] = binary
         cmd += ["--host", self.host, "--port", str(port)]
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+        log_path = self.log_dir / f"llamacpp-{stamp}.log"
+        log_fh = log_path.open("w", encoding="utf-8")
+        process = subprocess.Popen(cmd, stdout=log_fh, stderr=subprocess.STDOUT, start_new_session=True)
         try:
-            self._wait_until_ready(port)
+            self._wait_until_ready(port, process)
             runner = OpenAICompatibleRunner(
                 base_url=f"http://{self.host}:{port}/v1",
                 model="local-model",
                 timeout_s=180.0,
             )
-            return runner.benchmark(config, profile=profile)
+            result = runner.benchmark(config, profile=profile)
+            if result.probes:
+                result.probes[0].metadata["server_log"] = str(log_path)
+            return result
         except Exception as exc:  # noqa: BLE001 - convert startup issues into study data.
             return self._failed(config, profile, str(exc))
         finally:
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=10)
+            _terminate_process_group(process)
+            log_fh.close()
 
-    def _wait_until_ready(self, port: int) -> None:
+    def _wait_until_ready(self, port: int, process: subprocess.Popen) -> None:
         deadline = time.monotonic() + self.startup_timeout_s
         last_error = "not ready"
         while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError(f"llama-server exited early with code {process.returncode}")
             try:
                 response = httpx.get(f"http://{self.host}:{port}/health", timeout=2)
-                if response.status_code < 500:
+                if response.status_code == 200:
                     return
+                last_error = f"health status {response.status_code}"
             except Exception as exc:  # noqa: BLE001
                 last_error = str(exc)
             time.sleep(1)
@@ -118,3 +124,17 @@ def _pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
+
+
+def _terminate_process_group(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait(timeout=10)

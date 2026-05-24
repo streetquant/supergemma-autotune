@@ -15,3 +15,10 @@ def test_export_targets_include_tuned_values() -> None:
     assert "PARAMETER num_ctx 65536" in ollama
     assert '"contextLength": 65536' in lmstudio
 
+
+def test_llamacpp_export_quotes_model_paths() -> None:
+    config = TuneConfig()
+
+    rendered = export_config(config, target="llamacpp", model_path="models/my model.gguf")
+
+    assert "'models/my model.gguf'" in rendered
