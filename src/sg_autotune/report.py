@@ -4,7 +4,7 @@ from pathlib import Path
 import shlex
 
 from sg_autotune.models import BenchmarkResult, Recommendation
-from sg_autotune.study import best_result, load_results
+from sg_autotune.study import best_eligible_result, best_result, load_results
 
 
 def build_recommendation(
@@ -13,9 +13,15 @@ def build_recommendation(
     model_path: str = "MODEL.gguf",
 ) -> Recommendation:
     records = load_results(records_path)
-    best = best_result(records)
+    best = best_eligible_result(records)
+    used_ineligible = False
+    if best is None:
+        best = best_result(records)
+        used_ineligible = True
     runner = records[0].runner if records else "mock"
     warnings = _warnings(best)
+    if used_ineligible:
+        warnings.insert(0, "No eligible result met the quality/failure gate; showing highest scalar score only.")
     command = _recommendation_command(best, runner=runner, model_path=model_path)
     summary = (
         f"Best score {best.score:.3f}; quality {best.quality_score:.2f}; "
@@ -45,7 +51,7 @@ def render_markdown(records_path: Path, *, model_path: str = "MODEL.gguf") -> st
         "",
         f"Iterations: {len(records)}",
         "",
-        "## Recommendation",
+        "## Best Eligible Recommendation",
         "",
         recommendation.summary,
         "",

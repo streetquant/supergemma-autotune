@@ -165,9 +165,15 @@ def export(
     target: str = typer.Option("llamacpp", help="llamacpp, ollama, lmstudio, or codex."),
     model_path: str = typer.Option("MODEL.gguf", help="Path to use in generated config."),
     out: Path | None = typer.Option(None, help="Write export to this path."),
+    allow_ineligible: bool = typer.Option(False, help="Allow exporting failed/low-quality results."),
 ) -> None:
     """Export the best config for another runner or harness."""
-    rendered = export_from_records(records, target=target, model_path=model_path)
+    rendered = export_from_records(
+        records,
+        target=target,
+        model_path=model_path,
+        allow_ineligible=allow_ineligible,
+    )
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(rendered, encoding="utf-8")

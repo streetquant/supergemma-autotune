@@ -96,6 +96,17 @@ def best_result(records: list[StudyRecord]) -> BenchmarkResult:
     return max((record.result for record in records), key=lambda item: item.score)
 
 
+def is_recommendation_eligible(result: BenchmarkResult, *, min_quality: float = 0.5) -> bool:
+    return not result.failed and result.quality_score >= min_quality
+
+
+def best_eligible_result(records: list[StudyRecord], *, min_quality: float = 0.5) -> BenchmarkResult | None:
+    eligible = [record.result for record in records if is_recommendation_eligible(record.result, min_quality=min_quality)]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda item: item.score)
+
+
 def json_summary(path: Path) -> str:
     records = load_results(path)
     best = best_result(records)

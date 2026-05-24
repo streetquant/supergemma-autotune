@@ -20,6 +20,6 @@ def test_report_contains_recommendation(tmp_path: Path) -> None:
     markdown = render_markdown(out, model_path="supergemma.gguf")
 
     assert "SuperGemma AutoTune Report" in markdown
+    assert "Best Eligible Recommendation" in markdown
     assert "llama-server" in markdown
     assert "supergemma.gguf" in markdown
-

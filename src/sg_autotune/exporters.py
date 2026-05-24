@@ -5,11 +5,22 @@ import shlex
 from pathlib import Path
 
 from sg_autotune.models import TuneConfig
-from sg_autotune.study import best_result, load_results
+from sg_autotune.study import best_eligible_result, best_result, load_results
 
 
-def export_from_records(records_path: Path, *, target: str, model_path: str = "MODEL.gguf") -> str:
-    best = best_result(load_results(records_path))
+def export_from_records(
+    records_path: Path,
+    *,
+    target: str,
+    model_path: str = "MODEL.gguf",
+    allow_ineligible: bool = False,
+) -> str:
+    records = load_results(records_path)
+    best = best_eligible_result(records)
+    if best is None:
+        if not allow_ineligible:
+            raise ValueError("No eligible recommendation found; rerun longer or pass allow_ineligible.")
+        best = best_result(records)
     return export_config(best.config, target=target, model_path=model_path)
 
 
