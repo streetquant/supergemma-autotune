@@ -1,0 +1,178 @@
+from __future__ import annotations
+
+import json
+import time
+from collections.abc import Iterable
+
+import httpx
+
+from sg_autotune.models import BenchmarkResult, ProbeResult, TuneConfig
+from sg_autotune.runners.base import Runner
+from sg_autotune.scoring import recompute_result_score
+
+
+class OpenAICompatibleRunner(Runner):
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str = "not-needed",
+        timeout_s: float = 120.0,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.api_key = api_key
+        self.timeout_s = timeout_s
+
+    def benchmark(self, config: TuneConfig, *, profile: str) -> BenchmarkResult:
+        started = time.perf_counter()
+        probes = [self._run_probe(config, probe) for probe in PROBES]
+        failed = any(probe.error for probe in probes)
+        tps_values = [probe.tokens_per_second for probe in probes if probe.tokens_per_second > 0]
+        latency_values = [probe.latency_s for probe in probes]
+        result = BenchmarkResult(
+            config=config,
+            score=0,
+            quality_score=0,
+            tokens_per_second=round(sum(tps_values) / max(len(tps_values), 1), 3),
+            ttft_s=round(min(latency_values) if latency_values else self.timeout_s, 3),
+            peak_memory_mb=0.0,
+            memory_pressure=_estimate_memory_pressure(config),
+            failed=failed,
+            error="one or more probes failed at transport level" if failed else None,
+            probes=probes,
+            duration_s=round(time.perf_counter() - started, 3),
+        )
+        return recompute_result_score(result, profile)
+
+    def _run_probe(self, config: TuneConfig, probe: "Probe") -> ProbeResult:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are being evaluated by a local LLM runner autotuner. "
+                        "Follow the requested output format exactly."
+                    ),
+                },
+                {"role": "user", "content": probe.prompt},
+            ],
+            "temperature": config.temperature,
+            "top_p": config.top_p,
+            "max_tokens": probe.max_tokens,
+            "stream": False,
+        }
+        if config.top_k:
+            payload["top_k"] = config.top_k
+
+        t0 = time.perf_counter()
+        try:
+            response = httpx.post(
+                f"{self.base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json=payload,
+                timeout=self.timeout_s,
+            )
+            latency = time.perf_counter() - t0
+            response.raise_for_status()
+            data = response.json()
+            text = data["choices"][0]["message"].get("content") or ""
+            completion_tokens = _completion_tokens(data, text)
+            tps = completion_tokens / max(latency, 1e-6)
+            score = probe.score(text)
+            return ProbeResult(
+                name=probe.name,
+                passed=score >= 0.75,
+                score=score,
+                latency_s=round(latency, 3),
+                tokens_per_second=round(tps, 3),
+                metadata={"chars": len(text), "completion_tokens": completion_tokens},
+            )
+        except Exception as exc:  # noqa: BLE001 - probe errors should become data.
+            return ProbeResult(
+                name=probe.name,
+                passed=False,
+                score=0.0,
+                latency_s=round(time.perf_counter() - t0, 3),
+                tokens_per_second=0.0,
+                error=str(exc),
+            )
+
+
+class Probe:
+    def __init__(self, name: str, prompt: str, max_tokens: int, required: Iterable[str]):
+        self.name = name
+        self.prompt = prompt
+        self.max_tokens = max_tokens
+        self.required = tuple(required)
+
+    def score(self, text: str) -> float:
+        lowered = text.lower()
+        hits = sum(1 for item in self.required if item.lower() in lowered)
+        format_bonus = 0.15 if "```" not in text else -0.1
+        json_bonus = 0.0
+        if self.name == "json":
+            json_bonus = 0.3 if _looks_like_json(text) else -0.25
+        return max(0.0, min(1.0, hits / max(len(self.required), 1) + format_bonus + json_bonus))
+
+
+PROBES = (
+    Probe(
+        "json",
+        'Return exactly one JSON object with keys "ok", "runner", and "risk".',
+        80,
+        ("ok", "runner", "risk"),
+    ),
+    Probe(
+        "tool-call",
+        'Return a tool call as JSON: {"tool":"read_file","args":{"path":"README.md"}}',
+        80,
+        ("tool", "read_file", "args", "README.md"),
+    ),
+    Probe(
+        "code-edit",
+        "Fix this Python bug and return only the corrected line: for i in range(len(items)+1):",
+        80,
+        ("range", "len(items)"),
+    ),
+    Probe(
+        "long-context",
+        "Remember token ALPHA-729. Explain in one sentence why local runner settings matter. End with ALPHA-729.",
+        120,
+        ("ALPHA-729", "settings"),
+    ),
+    Probe(
+        "stability",
+        "Return five comma-separated words describing reliable local inference.",
+        60,
+        (",", "reliable"),
+    ),
+)
+
+
+def _completion_tokens(data: dict, text: str) -> int:
+    usage = data.get("usage") or {}
+    if usage.get("completion_tokens"):
+        return int(usage["completion_tokens"])
+    return max(1, len(text.split()))
+
+
+def _looks_like_json(text: str) -> bool:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        if "\n" in stripped:
+            stripped = stripped.split("\n", 1)[1]
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(parsed, dict)
+
+
+def _estimate_memory_pressure(config: TuneConfig) -> float:
+    kv = {"f16": 0.12, "q8_0": 0.07, "q4_0": 0.04}[config.kv_cache]
+    return round(min(1.0, 0.2 + config.ctx_size / 220000 + config.parallel * 0.05 + kv), 4)
+
