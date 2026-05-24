@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Iterable
+from collections.abc import Callable
 
 import httpx
 
@@ -113,20 +113,20 @@ class OpenAICompatibleRunner(Runner):
 
 
 class Probe:
-    def __init__(self, name: str, prompt: str, max_tokens: int, required: Iterable[str]):
+    def __init__(
+        self,
+        name: str,
+        prompt: str,
+        max_tokens: int,
+        validator: Callable[[str], float],
+    ):
         self.name = name
         self.prompt = prompt
         self.max_tokens = max_tokens
-        self.required = tuple(required)
+        self.validator = validator
 
     def score(self, text: str) -> float:
-        lowered = text.lower()
-        hits = sum(1 for item in self.required if item.lower() in lowered)
-        format_bonus = 0.15 if "```" not in text else -0.1
-        json_bonus = 0.0
-        if self.name == "json":
-            json_bonus = 0.3 if _looks_like_json(text) else -0.25
-        return max(0.0, min(1.0, hits / max(len(self.required), 1) + format_bonus + json_bonus))
+        return max(0.0, min(1.0, self.validator(text)))
 
 
 PROBES = (
@@ -134,31 +134,36 @@ PROBES = (
         "json",
         'Return exactly one JSON object with keys "ok", "runner", and "risk".',
         80,
-        ("ok", "runner", "risk"),
+        lambda text: 1.0
+        if _json_object(text) is not None
+        and set(_json_object(text) or {}) == {"ok", "runner", "risk"}
+        else 0.0,
     ),
     Probe(
         "tool-call",
         'Return a tool call as JSON: {"tool":"read_file","args":{"path":"README.md"}}',
         80,
-        ("tool", "read_file", "args", "README.md"),
+        lambda text: _tool_call_score(text),
     ),
     Probe(
         "code-edit",
         "Fix this Python bug and return only the corrected line: for i in range(len(items)+1):",
         80,
-        ("range", "len(items)"),
+        lambda text: 1.0
+        if text.strip() == "for i in range(len(items)):" or text.strip() == "for i in range(len(items))"
+        else 0.0,
     ),
     Probe(
         "long-context",
         "Remember token ALPHA-729. Explain in one sentence why local runner settings matter. End with ALPHA-729.",
         120,
-        ("ALPHA-729", "settings"),
+        lambda text: 1.0 if text.strip().endswith("ALPHA-729") and "settings" in text.lower() else 0.0,
     ),
     Probe(
         "stability",
         "Return five comma-separated words describing reliable local inference.",
         60,
-        (",", "reliable"),
+        lambda text: _comma_words_score(text),
     ),
 )
 
@@ -170,17 +175,38 @@ def _completion_tokens(data: dict, text: str) -> int:
     return max(1, len(text.split()))
 
 
-def _looks_like_json(text: str) -> bool:
+def _json_object(text: str) -> dict | None:
     stripped = text.strip()
     if stripped.startswith("```"):
-        stripped = stripped.strip("`")
+        stripped = stripped.strip("`").strip()
         if "\n" in stripped:
             stripped = stripped.split("\n", 1)[1]
     try:
         parsed = json.loads(stripped)
     except json.JSONDecodeError:
-        return False
-    return isinstance(parsed, dict)
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _tool_call_score(text: str) -> float:
+    parsed = _json_object(text)
+    if not parsed:
+        return 0.0
+    if parsed.get("tool") != "read_file":
+        return 0.0
+    args = parsed.get("args")
+    if not isinstance(args, dict):
+        return 0.0
+    return 1.0 if args.get("path") == "README.md" else 0.0
+
+
+def _comma_words_score(text: str) -> float:
+    if "\n" in text.strip():
+        return 0.0
+    parts = [part.strip() for part in text.split(",")]
+    if len(parts) != 5 or any(not part or " " in part for part in parts):
+        return 0.0
+    return 1.0 if any(part.lower() == "reliable" for part in parts) else 0.7
 
 
 def _estimate_memory_pressure(config: TuneConfig) -> float:
