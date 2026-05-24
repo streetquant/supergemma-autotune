@@ -69,6 +69,8 @@ want to let the runner try every candidate.
 
 Runs are resumable by default. Re-run with the same `--out` path to continue the
 same Bayesian study from its JSONL ledger, or pass `--fresh` to overwrite it.
+Each new study also writes a `*.jsonl.meta.json` sidecar with hardware, runner
+capabilities, seed, git commit, and constraint policy for reproducibility.
 
 Export the best result:
 
@@ -123,6 +125,7 @@ This first iteration ships the production shape:
 - SuperGemma model catalog and quickstart helper commands
 - resumable JSONL studies for long-running optimization sessions
 - runner capability filtering so each backend only searches parameters it applies
+- study metadata sidecars for reproducible long-running runs
 - CLI UI with scan/run/report/web commands
 - minimal FastAPI web UI
 - JSONL run ledger and Markdown reports

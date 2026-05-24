@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TextIO
 
 from sg_autotune.constraints import ConstraintPolicy, constraint_failure_result
+from sg_autotune.metadata import write_study_metadata
 from sg_autotune.models import BenchmarkResult, RunnerKind, StudyRecord
 from sg_autotune.optimizer import BayesianOptimizer
 from sg_autotune.runners import LlamaCppManagedRunner, MockRunner, OpenAICompatibleRunner, Runner
@@ -46,8 +47,18 @@ def run_study(
     resume: bool = True,
 ) -> list[BenchmarkResult]:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    optimizer = BayesianOptimizer(search_space=runner.capabilities().search_space(), seed=seed)
+    capabilities = runner.capabilities()
+    optimizer = BayesianOptimizer(search_space=capabilities.search_space(), seed=seed)
     records = load_results(out_path) if resume and out_path.exists() else []
+    if not records:
+        write_study_metadata(
+            out_path,
+            runner=runner_kind,
+            profile=profile,
+            seed=seed,
+            capabilities=capabilities,
+            constraint_policy=constraint_policy,
+        )
     history: list[BenchmarkResult] = [record.result for record in records]
     optimizer.observe_existing(history)
     deadline = time.monotonic() + budget_s
