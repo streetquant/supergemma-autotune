@@ -35,6 +35,11 @@ uv run sg-autotune run \
   --profile coding-agent
 ```
 
+OpenAI-compatible mode can only tune request-level sampling parameters that it
+actually sends to the endpoint. Use `--runner llamacpp` when you want AutoTune to
+apply server/runtime flags such as context, batching, KV cache, flash attention,
+GPU layers, and MTP.
+
 Start the minimal web UI:
 
 ```bash
@@ -117,6 +122,7 @@ This first iteration ships the production shape:
 - conservative hardware-aware constraints to avoid obvious OOM-prone candidates
 - SuperGemma model catalog and quickstart helper commands
 - resumable JSONL studies for long-running optimization sessions
+- runner capability filtering so each backend only searches parameters it applies
 - CLI UI with scan/run/report/web commands
 - minimal FastAPI web UI
 - JSONL run ledger and Markdown reports

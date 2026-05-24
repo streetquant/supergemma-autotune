@@ -7,7 +7,7 @@ from collections.abc import Iterable
 import httpx
 
 from sg_autotune.models import BenchmarkResult, ProbeResult, TuneConfig
-from sg_autotune.runners.base import Runner
+from sg_autotune.runners.base import Runner, RunnerCapabilities
 from sg_autotune.scoring import recompute_result_score
 
 
@@ -24,6 +24,17 @@ class OpenAICompatibleRunner(Runner):
         self.model = model
         self.api_key = api_key
         self.timeout_s = timeout_s
+
+    def capabilities(self) -> RunnerCapabilities:
+        return RunnerCapabilities(
+            name="openai-compatible",
+            applied_params=("temperature", "top_p", "top_k"),
+            notes=(
+                "Only request-level sampling parameters are applied. Server/runtime flags "
+                "such as context, KV cache, batching, flash attention, GPU layers, and MTP "
+                "must be configured outside this runner."
+            ),
+        )
 
     def benchmark(self, config: TuneConfig, *, profile: str) -> BenchmarkResult:
         started = time.perf_counter()
@@ -175,4 +186,3 @@ def _looks_like_json(text: str) -> bool:
 def _estimate_memory_pressure(config: TuneConfig) -> float:
     kv = {"f16": 0.12, "q8_0": 0.07, "q4_0": 0.04}[config.kv_cache]
     return round(min(1.0, 0.2 + config.ctx_size / 220000 + config.parallel * 0.05 + kv), 4)
-

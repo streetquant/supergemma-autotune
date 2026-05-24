@@ -42,6 +42,12 @@ class SearchSpace:
         self.specs = specs
         self._names = [spec.name for spec in specs]
 
+    @classmethod
+    def for_params(cls, names: tuple[str, ...]) -> "SearchSpace":
+        wanted = set(names)
+        specs = tuple(spec for spec in DEFAULT_SPACE if spec.name in wanted)
+        return cls(specs)
+
     def sample(self, rng: random.Random) -> TuneConfig:
         values: dict[str, Any] = {}
         for spec in self.specs:
@@ -115,4 +121,3 @@ class SearchSpace:
             values["mtp_draft_n"] = 2
         if values.get("ubatch_size", 0) > values.get("batch_size", 0):
             values["ubatch_size"] = values["batch_size"]
-

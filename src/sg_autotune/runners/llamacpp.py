@@ -9,8 +9,9 @@ from pathlib import Path
 import httpx
 
 from sg_autotune.models import BenchmarkResult, ProbeResult, TuneConfig
-from sg_autotune.runners.base import Runner
+from sg_autotune.runners.base import Runner, RunnerCapabilities
 from sg_autotune.runners.openai import OpenAICompatibleRunner
+from sg_autotune.search_space import DEFAULT_SPACE
 from sg_autotune.scoring import recompute_result_score
 
 
@@ -31,6 +32,13 @@ class LlamaCppManagedRunner(Runner):
         self.host = host
         self.port = port
         self.startup_timeout_s = startup_timeout_s
+
+    def capabilities(self) -> RunnerCapabilities:
+        return RunnerCapabilities(
+            name="managed-llamacpp",
+            applied_params=tuple(spec.name for spec in DEFAULT_SPACE),
+            notes="Starts llama-server per candidate and applies runtime flags directly.",
+        )
 
     def benchmark(self, config: TuneConfig, *, profile: str) -> BenchmarkResult:
         if not Path(self.model_path).exists():
@@ -110,4 +118,3 @@ def _pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return int(sock.getsockname()[1])
-

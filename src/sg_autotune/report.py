@@ -13,13 +13,26 @@ def build_recommendation(
 ) -> Recommendation:
     records = load_results(records_path)
     best = best_result(records)
+    runner = records[0].runner if records else "mock"
     warnings = _warnings(best)
-    command = " ".join(best.config.llama_cpp_args(model_path))
+    command = _recommendation_command(best, runner=runner, model_path=model_path)
     summary = (
         f"Best score {best.score:.3f}; quality {best.quality_score:.2f}; "
         f"{best.tokens_per_second:.1f} tok/s; TTFT {best.ttft_s:.2f}s."
     )
     return Recommendation(best=best, command=command, summary=summary, warnings=warnings)
+
+
+def _recommendation_command(best: BenchmarkResult, *, runner: str, model_path: str) -> str:
+    if runner == "openai":
+        return (
+            "OpenAI-compatible request settings: "
+            f"temperature={best.config.temperature:.3f}, "
+            f"top_p={best.config.top_p:.3f}, "
+            f"top_k={best.config.top_k}. "
+            "Runtime/server flags were not tuned by this runner."
+        )
+    return " ".join(best.config.llama_cpp_args(model_path))
 
 
 def render_markdown(records_path: Path, *, model_path: str = "MODEL.gguf") -> str:
@@ -77,4 +90,3 @@ def _warnings(best: BenchmarkResult) -> list[str]:
     if best.failed:
         warnings.append("Best-scoring run was marked failed; inspect the raw JSONL before using it.")
     return warnings
-

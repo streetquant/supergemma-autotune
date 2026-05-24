@@ -46,7 +46,7 @@ def run_study(
     resume: bool = True,
 ) -> list[BenchmarkResult]:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    optimizer = BayesianOptimizer(seed=seed)
+    optimizer = BayesianOptimizer(search_space=runner.capabilities().search_space(), seed=seed)
     records = load_results(out_path) if resume and out_path.exists() else []
     history: list[BenchmarkResult] = [record.result for record in records]
     optimizer.observe_existing(history)

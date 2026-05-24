@@ -5,7 +5,8 @@ import random
 import time
 
 from sg_autotune.models import BenchmarkResult, ProbeResult, TuneConfig
-from sg_autotune.runners.base import Runner
+from sg_autotune.runners.base import Runner, RunnerCapabilities
+from sg_autotune.search_space import DEFAULT_SPACE
 from sg_autotune.scoring import recompute_result_score
 
 
@@ -14,6 +15,13 @@ class MockRunner(Runner):
 
     def __init__(self, seed: int = 11):
         self.rng = random.Random(seed)
+
+    def capabilities(self) -> RunnerCapabilities:
+        return RunnerCapabilities(
+            name="mock",
+            applied_params=tuple(spec.name for spec in DEFAULT_SPACE),
+            notes="Deterministic simulated backend for CI and optimizer development.",
+        )
 
     def benchmark(self, config: TuneConfig, *, profile: str) -> BenchmarkResult:
         started = time.perf_counter()
@@ -100,4 +108,3 @@ class MockRunner(Runner):
 
 def _closeness(value: float, target: float, scale: float) -> float:
     return math.exp(-((value - target) ** 2) / (2 * scale * scale))
-
