@@ -25,7 +25,7 @@ def build_recommendation(
     command = _recommendation_command(best, runner=runner, model_path=model_path)
     summary = (
         f"Best score {best.score:.3f}; quality {best.quality_score:.2f}; "
-        f"{best.tokens_per_second:.1f} tok/s; TTFT {best.ttft_s:.2f}s."
+        f"{best.tokens_per_second:.1f} tok/s; fastest request latency {best.ttft_s:.2f}s."
     )
     return Recommendation(best=best, command=command, summary=summary, warnings=warnings)
 

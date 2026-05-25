@@ -12,9 +12,8 @@ def test_openai_runner_search_space_only_samples_applied_params() -> None:
     suggestion = optimizer.suggest([])
     default = TuneConfig()
 
-    assert runner.capabilities().applied_params == ("temperature", "top_p", "top_k")
+    assert runner.capabilities().applied_params == ("temperature", "top_p")
     assert suggestion.ctx_size == default.ctx_size
     assert suggestion.batch_size == default.batch_size
     assert suggestion.kv_cache == default.kv_cache
     assert suggestion.mtp_enabled == default.mtp_enabled
-

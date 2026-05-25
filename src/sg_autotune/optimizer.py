@@ -30,6 +30,10 @@ class BayesianOptimizer:
         self._seen: set[str] = set()
 
     def suggest(self, history: list[BenchmarkResult]) -> TuneConfig:
+        if not history:
+            config = TuneConfig()
+            self._seen.add(self._fingerprint(config))
+            return config
         if len(history) < self.initial_random:
             return self._unique_random()
 

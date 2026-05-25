@@ -19,16 +19,19 @@ class OpenAICompatibleRunner(Runner):
         model: str,
         api_key: str = "not-needed",
         timeout_s: float = 120.0,
+        send_top_k: bool = False,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.timeout_s = timeout_s
+        self.send_top_k = send_top_k
 
     def capabilities(self) -> RunnerCapabilities:
+        applied_params = ("temperature", "top_p", "top_k") if self.send_top_k else ("temperature", "top_p")
         return RunnerCapabilities(
             name="openai-compatible",
-            applied_params=("temperature", "top_p", "top_k"),
+            applied_params=applied_params,
             notes=(
                 "Only request-level sampling parameters are applied. Server/runtime flags "
                 "such as context, KV cache, batching, flash attention, GPU layers, and MTP "
@@ -75,7 +78,7 @@ class OpenAICompatibleRunner(Runner):
             "max_tokens": probe.max_tokens,
             "stream": False,
         }
-        if config.top_k:
+        if self.send_top_k and config.top_k:
             payload["top_k"] = config.top_k
 
         t0 = time.perf_counter()
@@ -99,7 +102,11 @@ class OpenAICompatibleRunner(Runner):
                 score=score,
                 latency_s=round(latency, 3),
                 tokens_per_second=round(tps, 3),
-                metadata={"chars": len(text), "completion_tokens": completion_tokens},
+                metadata={
+                    "chars": len(text),
+                    "completion_tokens": completion_tokens,
+                    "text_preview": text[:500],
+                },
             )
         except Exception as exc:  # noqa: BLE001 - probe errors should become data.
             return ProbeResult(
@@ -149,15 +156,13 @@ PROBES = (
         "code-edit",
         "Fix this Python bug and return only the corrected line: for i in range(len(items)+1):",
         80,
-        lambda text: 1.0
-        if text.strip() == "for i in range(len(items)):" or text.strip() == "for i in range(len(items))"
-        else 0.0,
+        lambda text: _code_edit_score(text),
     ),
     Probe(
         "long-context",
         "Remember token ALPHA-729. Explain in one sentence why local runner settings matter. End with ALPHA-729.",
         120,
-        lambda text: 1.0 if text.strip().endswith("ALPHA-729") and "settings" in text.lower() else 0.0,
+        lambda text: _long_context_score(text),
     ),
     Probe(
         "stability",
@@ -181,11 +186,47 @@ def _json_object(text: str) -> dict | None:
         stripped = stripped.strip("`").strip()
         if "\n" in stripped:
             stripped = stripped.split("\n", 1)[1]
-    try:
-        parsed = json.loads(stripped)
-    except json.JSONDecodeError:
+    candidates = [stripped]
+    extracted = _extract_first_json_object(stripped)
+    if extracted and extracted != stripped:
+        candidates.append(extracted)
+    parsed = None
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            break
+        except json.JSONDecodeError:
+            continue
+    if parsed is None:
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def _extract_first_json_object(text: str) -> str | None:
+    start = text.find("{")
+    if start < 0:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    for offset, char in enumerate(text[start:], start=start):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : offset + 1]
+    return None
 
 
 def _tool_call_score(text: str) -> float:
@@ -200,13 +241,31 @@ def _tool_call_score(text: str) -> float:
     return 1.0 if args.get("path") == "README.md" else 0.0
 
 
+def _code_edit_score(text: str) -> float:
+    stripped = text.strip().strip("`").strip()
+    corrected = "for i in range(len(items)):"
+    if stripped == corrected or stripped == corrected.rstrip(":"):
+        return 1.0
+    if corrected in stripped and "len(items)+1" not in stripped:
+        return 1.0
+    return 0.0
+
+
+def _long_context_score(text: str) -> float:
+    stripped = text.strip()
+    if "settings" not in stripped.lower() or "ALPHA-729" not in stripped:
+        return 0.0
+    normalized = stripped.rstrip(" .!`")
+    return 1.0 if normalized.endswith("ALPHA-729") else 0.75
+
+
 def _comma_words_score(text: str) -> float:
     if "\n" in text.strip():
         return 0.0
     parts = [part.strip() for part in text.split(",")]
     if len(parts) != 5 or any(not part or " " in part for part in parts):
         return 0.0
-    return 1.0 if any(part.lower() == "reliable" for part in parts) else 0.7
+    return 1.0 if any(part.lower() == "reliable" for part in parts) else 0.8
 
 
 def _estimate_memory_pressure(config: TuneConfig) -> float:

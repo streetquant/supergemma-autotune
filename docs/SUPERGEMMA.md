@@ -23,15 +23,29 @@ speed and reliability probes, and gives the user a concrete command/config to ru
 
 ## First-Class SuperGemma Targets
 
-The initial target is:
+The fast validation target is:
 
 ```text
-Jiunsong/supergemma4-26b-uncensored-gguf-v2
-supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf
+Abiray/supergemma4-e4b-abliterated-GGUF
+supergemma4-Q4_K_M.gguf
 ```
 
-This is a practical first model because it is a single GGUF file and fits the
-local-runner community's llama.cpp / LM Studio workflows.
+This is the primary validation model because it is the SuperGemma E4B line in a
+single llama.cpp-ready GGUF, with Q4_K_M called out by the quantizer as the
+recommended everyday local-use quant. The catalog also includes the larger
+`Jiunsong/supergemma4-26b-uncensored-gguf-v2:Q4_K_M` target for users with more
+time and bandwidth.
+
+The model-card llama.cpp entrypoint is:
+
+```bash
+llama-server -hf Abiray/supergemma4-e4b-abliterated-GGUF:Q4_K_M
+```
+
+For benchmark candidates, AutoTune also appends `--reasoning off` to the
+generated llama.cpp command. The validation probes are designed to score final
+JSON/tool/code output, so hidden reasoning tokens should not consume the probe
+budget or produce empty OpenAI-compatible `content` fields.
 
 ## Desired Upstream Feedback
 
@@ -48,8 +62,11 @@ Useful feedback from SuperGemma maintainers and users:
 ```text
 SuperGemma AutoTune: Bayesian optimization for SuperGemma local runner settings.
 
-- Runs SuperGemma on your actual hardware for a chosen time budget and searches llama.cpp/Ollama/LM Studio settings automatically.
+- Runs SuperGemma on your actual hardware for a chosen time budget and searches llama.cpp runtime settings directly.
 - Scores speed plus reliability: JSON, tool calls, coding edits, context pressure, crashes, and memory safety.
 - Outputs copy-paste configs so SuperGemma users stop guessing whether the model or their runner flags are the problem.
 ```
 
+For LM Studio, vLLM, Ollama, and other OpenAI-compatible endpoints, AutoTune only
+tunes request-level parameters that the endpoint confirms. Full runtime tuning is
+the managed llama.cpp path used by the validation workflow.

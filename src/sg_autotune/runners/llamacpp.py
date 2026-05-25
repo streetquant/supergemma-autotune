@@ -24,14 +24,16 @@ class LlamaCppManagedRunner(Runner):
     def __init__(
         self,
         *,
-        model_path: str,
+        model_path: str | None = None,
+        hf_model: str | None = None,
         binary: str = "llama-server",
         host: str = "127.0.0.1",
         port: int = 0,
-        startup_timeout_s: float = 90.0,
+        startup_timeout_s: float = 600.0,
         log_dir: str | Path = "runs/logs",
     ):
         self.model_path = model_path
+        self.hf_model = hf_model
         self.binary = binary
         self.host = host
         self.port = port
@@ -46,14 +48,20 @@ class LlamaCppManagedRunner(Runner):
         )
 
     def benchmark(self, config: TuneConfig, *, profile: str) -> BenchmarkResult:
-        if not Path(self.model_path).exists():
+        if self.model_path and not Path(self.model_path).exists():
             return self._failed(config, profile, f"model file not found: {self.model_path}")
+        if not self.model_path and not self.hf_model:
+            return self._failed(config, profile, "model path or Hugging Face model ref is required")
         binary = shutil.which(self.binary) or self.binary
         if not shutil.which(binary) and not Path(binary).exists():
             return self._failed(config, profile, f"llama-server binary not found: {self.binary}")
 
         port = self.port or _pick_free_port()
-        cmd = config.llama_cpp_args(self.model_path)
+        if self.hf_model:
+            cmd = config.llama_cpp_args(self.hf_model, hf_model=True)
+        else:
+            assert self.model_path is not None
+            cmd = config.llama_cpp_args(self.model_path)
         cmd[0] = binary
         cmd += ["--host", self.host, "--port", str(port)]
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -73,7 +81,15 @@ class LlamaCppManagedRunner(Runner):
                 result.probes[0].metadata["server_log"] = str(log_path)
             return result
         except Exception as exc:  # noqa: BLE001 - convert startup issues into study data.
-            return self._failed(config, profile, str(exc))
+            return self._failed(
+                config,
+                profile,
+                str(exc),
+                metadata={
+                    "server_log": str(log_path),
+                    "server_log_tail": _tail_text(log_path),
+                },
+            )
         finally:
             _terminate_process_group(process)
             log_fh.close()
@@ -95,7 +111,13 @@ class LlamaCppManagedRunner(Runner):
         raise TimeoutError(f"llama-server did not become ready: {last_error}")
 
     @staticmethod
-    def _failed(config: TuneConfig, profile: str, error: str) -> BenchmarkResult:
+    def _failed(
+        config: TuneConfig,
+        profile: str,
+        error: str,
+        *,
+        metadata: dict[str, str] | None = None,
+    ) -> BenchmarkResult:
         result = BenchmarkResult(
             config=config,
             score=0,
@@ -114,6 +136,7 @@ class LlamaCppManagedRunner(Runner):
                     latency_s=0,
                     tokens_per_second=0,
                     error=error,
+                    metadata=metadata or {},
                 )
             ],
         )
@@ -138,3 +161,11 @@ def _terminate_process_group(process: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGKILL)
         process.wait(timeout=10)
+
+
+def _tail_text(path: Path, *, max_chars: int = 4000) -> str:
+    try:
+        data = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return data[-max_chars:]

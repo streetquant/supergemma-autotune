@@ -8,5 +8,6 @@ dist/
 build/
 *.egg-info/
 runs/
+models/
+*.aria2
 .env
-

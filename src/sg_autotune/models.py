@@ -24,11 +24,11 @@ class TuneConfig(BaseModel):
     top_k: int = Field(20, ge=1, le=200)
     min_p: float = Field(0.0, ge=0.0, le=0.5)
 
-    def llama_cpp_args(self, model_path: str) -> list[str]:
+    def llama_cpp_args(self, model_ref: str, *, hf_model: bool = False) -> list[str]:
         args = [
             "llama-server",
-            "-m",
-            model_path,
+            "-hf" if hf_model else "-m",
+            model_ref,
             "-c",
             str(self.ctx_size),
             "-b",
@@ -47,6 +47,8 @@ class TuneConfig(BaseModel):
             str(self.top_k),
             "--min-p",
             f"{self.min_p:.3f}",
+            "--reasoning",
+            "off",
             "-ctk",
             self.kv_cache,
             "-ctv",

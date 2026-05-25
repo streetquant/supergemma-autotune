@@ -11,6 +11,9 @@ class SuperGemmaModel:
     family: str
     runner_hint: str
     notes: str
+    quant_ref: str | None = None
+    sha256: str | None = None
+    size_bytes: int | None = None
 
     @property
     def hf_url(self) -> str:
@@ -19,20 +22,52 @@ class SuperGemmaModel:
     def download_command(self, *, local_dir: str = "models") -> str:
         if self.filename:
             return (
-                "huggingface-cli download "
+                "hf download "
                 f"{self.repo_id} {self.filename} "
                 f"--local-dir {local_dir}/{self.repo_id.split('/')[-1]}"
             )
-        return f"huggingface-cli download {self.repo_id} --local-dir {local_dir}/{self.repo_id.split('/')[-1]}"
+        return f"hf download {self.repo_id} --local-dir {local_dir}/{self.repo_id.split('/')[-1]}"
+
+    def llama_server_command(self, *, llama_server: str = "llama-server") -> str:
+        if not self.quant_ref:
+            return f"{llama_server} -hf {self.repo_id}"
+        return f"{llama_server} -hf {self.repo_id}:{self.quant_ref}"
+
+    def local_path(self, *, local_dir: str = "models") -> str | None:
+        if not self.filename:
+            return None
+        return f"{local_dir}/{self.repo_id.split('/')[-1]}/{self.filename}"
+
+    def checksum_command(self, *, local_dir: str = "models") -> str | None:
+        local_path = self.local_path(local_dir=local_dir)
+        if not local_path or not self.sha256:
+            return None
+        return f"echo '{self.sha256}  {local_path}' | sha256sum -c -"
 
 
 SUPERGEMMA_MODELS: tuple[SuperGemmaModel, ...] = (
+    SuperGemmaModel(
+        repo_id="Abiray/supergemma4-e4b-abliterated-GGUF",
+        filename="supergemma4-Q4_K_M.gguf",
+        family="E4B GGUF",
+        runner_hint="llama.cpp / LM Studio",
+        notes=(
+            "Fast validation target: GGUF quant of Jiunsong/supergemma4-e4b-abliterated; "
+            "8B total parameters with 4-bit Q4_K_M local runner footprint."
+        ),
+        quant_ref="Q4_K_M",
+        sha256="55cd785e8386557eb8722ef618fa8468d9587c78e48d23cfdd828018647f4a77",
+        size_bytes=5335290144,
+    ),
     SuperGemmaModel(
         repo_id="Jiunsong/supergemma4-26b-uncensored-gguf-v2",
         filename="supergemma4-26b-uncensored-fast-v2-Q4_K_M.gguf",
         family="26B GGUF",
         runner_hint="llama.cpp / LM Studio",
         notes="Best first target for AutoTune: single GGUF, consumer-GPU friendly quant.",
+        quant_ref="Q4_K_M",
+        sha256="e773b0a209d48524f9d485bca0818247f75d7ddde7cce951367a7e441fb59137",
+        size_bytes=16796015232,
     ),
     SuperGemmaModel(
         repo_id="Jiunsong/supergemma4-26b-uncensored-mlx-4bit-v2",
@@ -67,6 +102,9 @@ def model_catalog_json() -> str:
                 "family": model.family,
                 "runner_hint": model.runner_hint,
                 "notes": model.notes,
+                "quant_ref": model.quant_ref,
+                "sha256": model.sha256,
+                "size_bytes": model.size_bytes,
                 "hf_url": model.hf_url,
             }
             for model in SUPERGEMMA_MODELS
@@ -74,4 +112,3 @@ def model_catalog_json() -> str:
         indent=2,
         sort_keys=True,
     )
-
