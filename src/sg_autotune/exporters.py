@@ -16,6 +16,11 @@ def export_from_records(
     allow_ineligible: bool = False,
 ) -> str:
     records = load_results(records_path)
+    if records and records[0].runner == "openai" and target in {"llamacpp", "ollama", "lmstudio"}:
+        raise ValueError(
+            "OpenAI-compatible studies tune request sampling only; export target 'codex' "
+            "or rerun with --runner llamacpp to export runtime/server flags."
+        )
     best = best_eligible_result(records)
     if best is None:
         if not allow_ineligible:

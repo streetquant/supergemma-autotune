@@ -19,5 +19,5 @@ def test_bayesian_study_produces_records(tmp_path: Path) -> None:
     records = load_results(out)
     assert len(history) == 12
     assert len(records) == 12
+    assert records[0].result.config.model_dump() == records[0].result.config.__class__().model_dump()
     assert max(record.result.score for record in records) > 0.25
-

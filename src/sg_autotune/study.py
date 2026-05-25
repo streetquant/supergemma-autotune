@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TextIO
 
 from sg_autotune.constraints import ConstraintPolicy, constraint_failure_result
-from sg_autotune.metadata import write_study_metadata
+from sg_autotune.metadata import fsync_text_file, validate_resume_metadata, write_study_metadata
 from sg_autotune.models import BenchmarkResult, RunnerKind, StudyRecord
 from sg_autotune.optimizer import BayesianOptimizer
 from sg_autotune.runners import LlamaCppManagedRunner, MockRunner, OpenAICompatibleRunner, Runner
@@ -18,8 +18,10 @@ def build_runner(
     base_url: str | None = None,
     model: str | None = None,
     model_path: str | None = None,
+    hf_model: str | None = None,
     llama_server: str = "llama-server",
     port: int = 0,
+    startup_timeout_s: float = 600.0,
 ) -> Runner:
     if runner == "mock":
         return MockRunner()
@@ -28,9 +30,15 @@ def build_runner(
             raise ValueError("--base-url and --model are required for --runner openai")
         return OpenAICompatibleRunner(base_url=base_url, model=model)
     if runner == "llamacpp":
-        if not model_path:
-            raise ValueError("--model-path is required for --runner llamacpp")
-        return LlamaCppManagedRunner(model_path=model_path, binary=llama_server, port=port)
+        if not model_path and not hf_model:
+            raise ValueError("--model-path or --hf-model is required for --runner llamacpp")
+        return LlamaCppManagedRunner(
+            model_path=model_path,
+            hf_model=hf_model,
+            binary=llama_server,
+            port=port,
+            startup_timeout_s=startup_timeout_s,
+        )
     raise ValueError(f"Unsupported runner: {runner}")
 
 
@@ -58,6 +66,14 @@ def run_study(
             seed=seed,
             capabilities=capabilities,
             constraint_policy=constraint_policy,
+        )
+    else:
+        validate_resume_metadata(
+            out_path,
+            runner=runner_kind,
+            profile=profile,
+            seed=seed,
+            capabilities=capabilities,
         )
     history: list[BenchmarkResult] = [record.result for record in records]
     optimizer.observe_existing(history)
@@ -98,7 +114,7 @@ def load_results(path: Path) -> list[StudyRecord]:
 
 def _write_record(fh: TextIO, record: StudyRecord) -> None:
     fh.write(record.model_dump_json() + "\n")
-    fh.flush()
+    fsync_text_file(fh)
 
 
 def best_result(records: list[StudyRecord]) -> BenchmarkResult:

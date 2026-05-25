@@ -46,6 +46,7 @@ def index() -> str:
         <label>Base URL <input name="base_url" value="http://127.0.0.1:8080/v1" /></label>
         <label>Model <input name="model" value="supergemma" /></label>
         <label>GGUF path <input name="model_path" value="" /></label>
+        <label>HF llama.cpp ref <input name="hf_model" value="Abiray/supergemma4-e4b-abliterated-GGUF:Q4_K_M" /></label>
         <label>Safety
           <select name="safe_mode"><option value="true">safe</option><option value="false">unsafe</option></select>
         </label>
@@ -69,6 +70,7 @@ def start_run(
     base_url: str = Form("http://127.0.0.1:8080/v1"),
     model: str = Form("supergemma"),
     model_path: str = Form(""),
+    hf_model: str = Form(""),
     safe_mode: bool = Form(True),
 ) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -78,6 +80,7 @@ def start_run(
         base_url=base_url,
         model=model,
         model_path=model_path or None,
+        hf_model=hf_model or None,
     )
     background_tasks.add_task(
         run_study,
