@@ -108,7 +108,11 @@ def best_result(records: list[StudyRecord]) -> BenchmarkResult:
 
 
 def is_recommendation_eligible(result: BenchmarkResult, *, min_quality: float = 0.5) -> bool:
-    return not result.failed and result.quality_score >= min_quality
+    if result.failed or result.quality_score < min_quality:
+        return False
+    if not result.probes:
+        return False
+    return all(probe.passed for probe in result.probes if probe.name != "server-log")
 
 
 def best_eligible_result(records: list[StudyRecord], *, min_quality: float = 0.5) -> BenchmarkResult | None:

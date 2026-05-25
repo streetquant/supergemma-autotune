@@ -46,12 +46,17 @@ def render_markdown(records_path: Path, *, model_path: str = "MODEL.gguf") -> st
     records = load_results(records_path)
     recommendation = build_recommendation(records_path, model_path=model_path)
     best = recommendation.best
+    recommendation_heading = (
+        "## Highest Scalar Score"
+        if recommendation.warnings and recommendation.warnings[0].startswith("No eligible result")
+        else "## Best Eligible Recommendation"
+    )
     lines = [
         "# SuperGemma AutoTune Report",
         "",
         f"Iterations: {len(records)}",
         "",
-        "## Best Eligible Recommendation",
+        recommendation_heading,
         "",
         recommendation.summary,
         "",
