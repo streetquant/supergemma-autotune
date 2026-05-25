@@ -50,22 +50,6 @@ exported best command are in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 ![SuperGemma AutoTune workflow](docs/assets/workflow-supergemma.png)
 
-```mermaid
-flowchart LR
-    A[SuperGemma E4B target<br/>GGUF Q4_K_M] --> B[Checksum + size verification]
-    B --> C[Hardware scan<br/>GPU VRAM, CPU threads, RAM, NUMA, disk]
-    C --> D[Safety planner<br/>per-GPU memory + split/thread plan]
-    D --> E[Managed llama.cpp<br/>one llama-server per candidate]
-    E --> F[Reliability gates<br/>JSON, tool call, code edit, recall, stability]
-    E --> G[Speed metrics<br/>tok/s, request latency, failures]
-    F --> H[JSONL ledger + metadata + logs]
-    G --> H
-    H --> I[Bayesian optimizer]
-    I --> D
-    H --> J[Report + PNG dashboard]
-    J --> K[Copy-paste hardware-aware llama.cpp config]
-```
-
 ## Quick start
 
 Install dependencies with `uv`:
