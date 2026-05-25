@@ -28,6 +28,14 @@ visible and repeatable for your own hardware.
 
 ## Screenshots and workflow
 
+### Dashboard UI
+
+![SuperGemma AutoTune dashboard UI](docs/assets/dashboard-ui.png)
+
+### Full generated report
+
+![SuperGemma AutoTune full report](docs/assets/report-supergemma.png)
+
 ### Optimization dashboard
 
 ![SuperGemma optimization dashboard](docs/assets/optimization-supergemma.png)
@@ -200,7 +208,7 @@ Local checks:
 uv run pytest -q
 ```
 
-Current status: `35 passed`.
+Current status: `36 passed`.
 
 ## Roadmap
 
