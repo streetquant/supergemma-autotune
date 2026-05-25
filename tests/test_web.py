@@ -16,3 +16,13 @@ def test_report_rejects_paths_outside_runs(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.text == "Invalid run path."
+
+
+def test_dashboard_index_contains_run_form() -> None:
+    client = TestClient(app)
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Find the fastest safe local runner config." in response.text
+    assert "Start a run" in response.text
+    assert "Recent runs" in response.text
