@@ -211,7 +211,11 @@ def run(
     )
     if not history:
         raise typer.BadParameter("Budget ended before any iteration completed.")
-    recommendation = build_recommendation(out)
+    recommendation = build_recommendation(
+        out,
+        model_path=model_path or "MODEL.gguf",
+        hardware_policy=constraint_policy,
+    )
     console.print(f"[green]Done[/green] {len(history)} iterations")
     console.print(recommendation.summary)
     console.print(recommendation.command, soft_wrap=True)

@@ -15,11 +15,15 @@ configuration:
 - context size too high for available VRAM
 - KV cache type degrading structured output
 - MTP draft depth helping speed but harming acceptance or stability
-- copied `llama-server` flags that fit another person's GPU, not yours
+- copied `llama-server` flags that fit another person's GPU topology, not yours
 - harness expectations around JSON and tool calls that are not tested directly
 
-AutoTune makes those tradeoffs measurable. It runs a time-budgeted search, scores
-speed and reliability probes, and gives the user a concrete command/config to run.
+AutoTune makes those tradeoffs measurable. It scans GPU VRAM, CPU threads, RAM,
+NUMA, and disk context; runs a time-budgeted search; scores speed and
+reliability probes; and gives the user a concrete hardware-aware command/config
+to run. On multi-GPU hosts, it plans active devices, tensor split weights, main
+GPU placement, and per-device memory safety before recommending the final
+`llama.cpp` command.
 
 ## First-Class SuperGemma Targets
 
@@ -63,8 +67,8 @@ Useful feedback from SuperGemma maintainers and users:
 SuperGemma AutoTune: Bayesian optimization for SuperGemma local runner settings.
 
 - Runs SuperGemma on your actual hardware for a chosen time budget and searches llama.cpp runtime settings directly.
-- Scores speed plus reliability: JSON, tool calls, coding edits, context pressure, crashes, and memory safety.
-- Outputs copy-paste configs so SuperGemma users stop guessing whether the model or their runner flags are the problem.
+- Scores speed plus reliability: JSON, tool calls, coding edits, context pressure, crashes, and per-GPU memory safety.
+- Outputs hardware-aware copy-paste configs so SuperGemma users stop guessing whether the model or their runner flags are the problem.
 ```
 
 For LM Studio, vLLM, Ollama, and other OpenAI-compatible endpoints, AutoTune only

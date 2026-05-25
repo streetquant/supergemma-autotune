@@ -23,6 +23,14 @@ class TuneConfig(BaseModel):
     top_p: float = Field(0.95, ge=0.05, le=1.0)
     top_k: int = Field(20, ge=1, le=200)
     min_p: float = Field(0.0, ge=0.0, le=0.5)
+    device: str | None = None
+    split_mode: Literal["none", "layer", "row", "tensor"] | None = None
+    tensor_split: str | None = None
+    main_gpu: int | None = Field(default=None, ge=0)
+    threads: int | None = Field(default=None, ge=1)
+    threads_batch: int | None = Field(default=None, ge=1)
+    numa: Literal["distribute", "isolate", "numactl"] | None = None
+    fit_target: str | None = None
 
     def llama_cpp_args(self, model_ref: str, *, hf_model: bool = False) -> list[str]:
         args = [
@@ -56,6 +64,22 @@ class TuneConfig(BaseModel):
         ]
         if self.flash_attn:
             args += ["-fa", "on"]
+        if self.device:
+            args += ["--device", self.device]
+        if self.split_mode:
+            args += ["--split-mode", self.split_mode]
+        if self.tensor_split:
+            args += ["--tensor-split", self.tensor_split]
+        if self.main_gpu is not None:
+            args += ["--main-gpu", str(self.main_gpu)]
+        if self.threads is not None:
+            args += ["--threads", str(self.threads)]
+        if self.threads_batch is not None:
+            args += ["--threads-batch", str(self.threads_batch)]
+        if self.numa:
+            args += ["--numa", self.numa]
+        if self.fit_target:
+            args += ["--fit", "on", "--fit-target", self.fit_target]
         if self.mtp_enabled and self.mtp_draft_n > 0:
             args += ["--spec-type", "draft-mtp", "--spec-draft-n-max", str(self.mtp_draft_n)]
         return args

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import shlex
 
+from sg_autotune.constraints import ConstraintPolicy, auto_constraint_policy
 from sg_autotune.models import BenchmarkResult, Recommendation
 from sg_autotune.study import best_eligible_result, best_result, load_results
 
@@ -11,6 +12,7 @@ def build_recommendation(
     records_path: Path,
     *,
     model_path: str = "MODEL.gguf",
+    hardware_policy: ConstraintPolicy | None = None,
 ) -> Recommendation:
     records = load_results(records_path)
     best = best_eligible_result(records)
@@ -19,6 +21,9 @@ def build_recommendation(
         best = best_result(records)
         used_ineligible = True
     runner = records[0].runner if records else "mock"
+    if runner == "llamacpp":
+        policy = hardware_policy or auto_constraint_policy(model_path)
+        best = best.model_copy(update={"config": policy.apply_hardware_defaults(best.config)})
     warnings = _warnings(best)
     if used_ineligible:
         warnings.insert(0, "No eligible result met the quality/failure gate; showing highest scalar score only.")
@@ -70,6 +75,13 @@ def render_markdown(records_path: Path, *, model_path: str = "MODEL.gguf") -> st
         best.config.model_dump_json(indent=2),
         "```",
         "",
+    ]
+    hardware_lines = _hardware_lines(best)
+    if hardware_lines:
+        lines += ["## Hardware-Aware Runner Flags", ""]
+        lines += hardware_lines
+        lines += [""]
+    lines += [
         "## Probe Results",
         "",
         "| Probe | Pass | Score | Latency | tok/s | Error |",
@@ -102,3 +114,25 @@ def _warnings(best: BenchmarkResult) -> list[str]:
     if best.failed:
         warnings.append("Best-scoring run was marked failed; inspect the raw JSONL before using it.")
     return warnings
+
+
+def _hardware_lines(best: BenchmarkResult) -> list[str]:
+    config = best.config
+    rows = []
+    if config.device:
+        rows.append(f"- Devices: `{config.device}`")
+    if config.split_mode:
+        rows.append(f"- Multi-GPU split mode: `{config.split_mode}`")
+    if config.tensor_split:
+        rows.append(f"- Tensor split weights: `{config.tensor_split}`")
+    if config.main_gpu is not None:
+        rows.append(f"- Main GPU: `{config.main_gpu}`")
+    if config.threads is not None:
+        rows.append(f"- Generation CPU threads: `{config.threads}`")
+    if config.threads_batch is not None:
+        rows.append(f"- Batch CPU threads: `{config.threads_batch}`")
+    if config.numa:
+        rows.append(f"- NUMA policy: `{config.numa}`")
+    if config.fit_target:
+        rows.append(f"- llama.cpp fit target: `{config.fit_target}` MiB per active GPU")
+    return rows

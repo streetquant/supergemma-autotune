@@ -31,3 +31,27 @@ def test_llamacpp_args_support_hf_refs() -> None:
     args = config.llama_cpp_args("Abiray/supergemma4-e4b-abliterated-GGUF:Q4_K_M", hf_model=True)
 
     assert args[:3] == ["llama-server", "-hf", "Abiray/supergemma4-e4b-abliterated-GGUF:Q4_K_M"]
+
+
+def test_llamacpp_args_include_multi_gpu_and_cpu_hardware_flags() -> None:
+    config = TuneConfig(
+        device="0,1",
+        split_mode="layer",
+        tensor_split="22000,18000",
+        main_gpu=0,
+        threads=24,
+        threads_batch=48,
+        numa="distribute",
+        fit_target="1536,1536",
+    )
+
+    rendered = " ".join(config.llama_cpp_args("model.gguf"))
+
+    assert "--device 0,1" in rendered
+    assert "--split-mode layer" in rendered
+    assert "--tensor-split 22000,18000" in rendered
+    assert "--main-gpu 0" in rendered
+    assert "--threads 24" in rendered
+    assert "--threads-batch 48" in rendered
+    assert "--numa distribute" in rendered
+    assert "--fit on --fit-target 1536,1536" in rendered
