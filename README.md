@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/streetquant/supergemma-autotune/actions/workflows/ci.yml/badge.svg)](https://github.com/streetquant/supergemma-autotune/actions/workflows/ci.yml)
 
-**Production-oriented runtime autotuning for SuperGemma on local hardware.**
-
-SuperGemma AutoTune searches runner settings for the machine in front of you. It
-starts a local runner, evaluates real reliability probes, measures latency and
-throughput, and emits a copy-paste configuration backed by a reproducible JSONL
-ledger. It is **runtime autotuning, not weight fine-tuning**: model weights stay
-unchanged.
+**Turn SuperGemma from “it runs” into a hardware-specific production
+configuration.** SuperGemma AutoTune benchmarks the model on your actual GPUs,
+CPU, RAM, and runner stack; rejects unsafe memory layouts; searches `llama.cpp`
+runtime settings; verifies JSON/tool/coding reliability; and returns a
+copy-paste command backed by a reproducible JSONL ledger. It is **runtime
+autotuning, not weight fine-tuning**: model weights stay unchanged while the
+local serving setup gets measurably faster and safer.
 
 ## Why this exists
 
@@ -33,16 +33,18 @@ visible and repeatable for your own hardware.
 ![SuperGemma optimization dashboard](docs/assets/optimization-supergemma.png)
 
 Validation snapshot from **2026-05-25** on an RTX 3090 using the recommended
-SuperGemma E4B `Q4_K_M` GGUF target:
+SuperGemma E4B `Q4_K_M` GGUF target. The longer run expanded the search to **100
+iterations** and produced **90 eligible candidates** that passed the reliability
+gate:
 
-| Metric | Default baseline | Best / observed during search |
-| --- | ---: | ---: |
-| Eligible score | `0.757` | `0.765` |
-| Throughput | `91.9 tok/s` | `102.4 tok/s` |
-| Fastest request latency | `0.124s` | `0.114s` |
+| Metric | Default baseline | Best / observed during search | Improvement |
+| --- | ---: | ---: | ---: |
+| Eligible score | `0.757` | `0.769` | `+1.5%` |
+| Throughput | `91.9 tok/s` | `102.4 tok/s` | `+11.4%` |
+| Fastest request latency | `0.124s` | `0.114s` | `8.1% lower` |
 
-Full commands, checksum evidence, ledger paths, and the exported best command are
-in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+Full commands, checksum evidence, hardware-aware flags, ledger paths, and the
+exported best command are in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 ### End-to-end workflow
 
@@ -51,16 +53,17 @@ in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 ```mermaid
 flowchart LR
     A[SuperGemma E4B target<br/>GGUF Q4_K_M] --> B[Checksum + size verification]
-    B --> C[Managed llama.cpp<br/>one llama-server per candidate]
-    C --> D[Reliability probes<br/>JSON, tool call, code edit, recall]
-    C --> E[Speed metrics<br/>tok/s, request latency, failures]
-    D --> F[JSONL ledger + metadata]
-    E --> F
-    F --> G[Bayesian optimizer]
-    G --> H[Next candidate params]
-    H --> C
-    F --> I[Report + PNG dashboard]
-    I --> J[Copy-paste llama.cpp config]
+    B --> C[Hardware scan<br/>GPU VRAM, CPU threads, RAM, NUMA, disk]
+    C --> D[Safety planner<br/>per-GPU memory + split/thread plan]
+    D --> E[Managed llama.cpp<br/>one llama-server per candidate]
+    E --> F[Reliability gates<br/>JSON, tool call, code edit, recall, stability]
+    E --> G[Speed metrics<br/>tok/s, request latency, failures]
+    F --> H[JSONL ledger + metadata + logs]
+    G --> H
+    H --> I[Bayesian optimizer]
+    I --> D
+    H --> J[Report + PNG dashboard]
+    J --> K[Copy-paste hardware-aware llama.cpp config]
 ```
 
 ## Quick start
@@ -149,6 +152,7 @@ server flags. For full SuperGemma runtime tuning, use `--runner llamacpp`.
 | --- | --- |
 | Context and batching | `ctx_size`, `batch_size`, `ubatch_size`, `parallel` |
 | Memory/runtime | `kv_cache`, `gpu_layers`, `flash_attn`, `mtp_enabled`, `mtp_draft_n` |
+| Hardware plan | active `--device`, `--split-mode`, `--tensor-split`, `--main-gpu`, CPU threads, NUMA, `--fit-target` |
 | Sampling | `temperature`, `top_p`, `top_k`, `min_p` |
 
 ## What it scores
@@ -179,6 +183,7 @@ Reliability probes check:
 - managed `llama-server` lifecycle per candidate
 - automatic `--reasoning off` for llama.cpp benchmark candidates
 - hardware-aware safety prefilter for obvious OOM-prone candidates
+- multi-GPU planning with per-device VRAM estimates, tensor-split weights, main-GPU selection, CPU thread hints, and NUMA awareness
 - runner capability filtering so each backend only searches parameters it applies
 - resumable JSONL studies with atomic metadata sidecars
 - fsynced ledger writes for safer long-running optimization sessions
@@ -211,11 +216,11 @@ Local checks:
 uv run pytest -q
 ```
 
-Current status: `30 passed`.
+Current status: `35 passed`.
 
 ## Roadmap
 
-- richer model-specific memory estimation
+- richer model-specific architecture-aware memory estimation
 - additional runner capability probes
 - expanded benchmark profiles for chat, coding, and tool-heavy workflows
 - optional side-by-side quant comparison dashboards

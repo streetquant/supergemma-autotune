@@ -86,6 +86,8 @@ def run_study(
             if max_iterations is not None and new_iterations >= max_iterations:
                 break
             config = optimizer.suggest(history)
+            if constraint_policy:
+                config = constraint_policy.apply_hardware_defaults(config)
             rejection = constraint_policy.explain_rejection(config) if constraint_policy else None
             if rejection:
                 result = constraint_failure_result(config, profile, rejection)

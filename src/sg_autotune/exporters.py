@@ -4,6 +4,7 @@ import json
 import shlex
 from pathlib import Path
 
+from sg_autotune.constraints import auto_constraint_policy
 from sg_autotune.models import TuneConfig
 from sg_autotune.study import best_eligible_result, best_result, load_results
 
@@ -26,6 +27,10 @@ def export_from_records(
         if not allow_ineligible:
             raise ValueError("No eligible recommendation found; rerun longer or pass allow_ineligible.")
         best = best_result(records)
+    if records and records[0].runner == "llamacpp" and target in {"llamacpp", "lmstudio", "codex"}:
+        best = best.model_copy(
+            update={"config": auto_constraint_policy(model_path).apply_hardware_defaults(best.config)}
+        )
     return export_config(best.config, target=target, model_path=model_path)
 
 
